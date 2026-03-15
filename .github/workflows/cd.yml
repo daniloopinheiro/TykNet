@@ -1,0 +1,419 @@
+name: CD - Deploy
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Ambiente para deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build produção
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          if grep -q "\"build\"" package.json; then
+            npm run build
+          fi
+        env:
+          NODE_ENV: production
+
+      - name: Deploy para Vercel
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN não configurado, pulando deploy para Vercel"
+            exit 0
+          fi
+          npm install -g vercel
+          vercel --prod --token=$VERCEL_TOKEN
+
+      - name: Deploy para Netlify
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "NETLIFY_AUTH_TOKEN não configurado, pulando deploy para Netlify"
+            exit 0
+          fi
+          npm install -g netlify-cli
+          netlify deploy --prod --dir=dist
+
+      - name: Deploy para GitHub Pages
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar Dockerfile
+        id: check-dockerfile
+        run: |
+          if [ -f "Dockerfile" ]; then
+            echo "has_dockerfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_dockerfile=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Docker Build & Push
+      - name: Set up Docker Buildx
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login Docker Hub
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login GitHub Container Registry
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build e Push Docker
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Deploy para serviços cloud
+      - name: Verificar arquivos para deploy
+        id: check-deploy
+        run: |
+          echo "has_package_json=$([ -f 'package.json' ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "has_csproj=$(find . -name '*.csproj' -type f | head -n 1 | grep -q . && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+      - name: Deploy para AWS (Node.js)
+        if: steps.check-deploy.outputs.has_package_json == 'true'
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "AWS_ACCESS_KEY_ID não configurado, pulando deploy para AWS"
+            exit 0
+          fi
+          npm install -g serverless
+          if [ -f "serverless.yml" ]; then
+            serverless deploy
+          fi
+
+      - name: Deploy para Heroku
+        continue-on-error: true
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          if [ -z "$HEROKU_API_KEY" ]; then
+            echo "HEROKU_API_KEY não configurado, pulando deploy para Heroku"
+            exit 0
+          fi
+          curl https://cli-assets.heroku.com/install.sh | sh
+          heroku container:login
+          heroku container:push web -a $HEROKU_APP_NAME
+          heroku container:release web -a $HEROKU_APP_NAME
+
+      - name: Deploy para Azure (.NET)
+        if: steps.check-deploy.outputs.has_csproj == 'true'
+        continue-on-error: true
+        env:
+          AZURE_WEBAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        run: |
+          if [ -z "$AZURE_WEBAPP_PUBLISH_PROFILE" ]; then
+            echo "AZURE_WEBAPP_PUBLISH_PROFILE não configurado, pulando deploy para Azure"
+            exit 0
+          fi
+          echo "Deploy para Azure não implementado neste exemplo"
+          echo "Configure as ações específicas do Azure conforme necessário"
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      discussions: write
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Obter informações da tag
+        id: tag_info
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "release_name=Release $TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Gerar changelog detalhado
+        id: changelog
+        run: |
+          # Obter tag anterior
+          PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+          
+          # Gerar changelog
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "## 📋 Mudanças desde $PREVIOUS_TAG" > changelog.md
+            echo "" >> changelog.md
+            
+            # Features
+            FEATURES=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -i "feat:" || echo "")
+            if [ -n "$FEATURES" ]; then
+              echo "### ✨ Novas Funcionalidades" >> changelog.md
+              echo "$FEATURES" | sed 's/feat: //' >> changelog.md
+              echo "" >> changelog.md
+            fi
+            
+            # Fixes
+            FIXES=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -i "fix:" || echo "")
+            if [ -n "$FIXES" ]; then
+              echo "### 🐛 Correções de Bugs" >> changelog.md
+              echo "$FIXES" | sed 's/fix: //' >> changelog.md
+              echo "" >> changelog.md
+            fi
+            
+            # Docs
+            DOCS=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -i "docs:" || echo "")
+            if [ -n "$DOCS" ]; then
+              echo "### 📝 Documentação" >> changelog.md
+              echo "$DOCS" | sed 's/docs: //' >> changelog.md
+              echo "" >> changelog.md
+            fi
+            
+            # Outros
+            OTHERS=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -v -i "feat:\|fix:\|docs:" || echo "")
+            if [ -n "$OTHERS" ]; then
+              echo "### 🔧 Outras Mudanças" >> changelog.md
+              echo "$OTHERS" >> changelog.md
+              echo "" >> changelog.md
+            fi
+            
+            # Estatísticas
+            COMMITS_COUNT=$(git rev-list $PREVIOUS_TAG..HEAD --count)
+            CONTRIBUTORS=$(git log $PREVIOUS_TAG..HEAD --format='%an' | sort -u | wc -l)
+            
+            echo "---" >> changelog.md
+            echo "" >> changelog.md
+            echo "### 📊 Estatísticas" >> changelog.md
+            echo "- **Commits:** $COMMITS_COUNT" >> changelog.md
+            echo "- **Contribuidores:** $CONTRIBUTORS" >> changelog.md
+            echo "- **Tag Anterior:** \`$PREVIOUS_TAG\`" >> changelog.md
+            
+          else
+            echo "## 🎉 Primeira Release!" > changelog.md
+            echo "" >> changelog.md
+            echo "### 📋 Mudanças Incluídas" >> changelog.md
+            git log --pretty=format:"- %s (%h)" --no-merges | head -n 20 >> changelog.md
+          fi
+          
+          echo "" >> changelog.md
+          echo "---" >> changelog.md
+          echo "" >> changelog.md
+          echo "### 📥 Como Instalar" >> changelog.md
+          echo "" >> changelog.md
+          echo "#### Clone o repositório:" >> changelog.md
+          echo "\`\`\`bash" >> changelog.md
+          echo "git clone https://github.com/${{ github.repository }}.git" >> changelog.md
+          echo "cd $(basename ${{ github.repository }})" >> changelog.md
+          echo "git checkout ${GITHUB_REF#refs/tags/}" >> changelog.md
+          echo "\`\`\`" >> changelog.md
+          echo "" >> changelog.md
+          echo "#### Ou baixe os assets desta release." >> changelog.md
+          echo "" >> changelog.md
+          echo "---" >> changelog.md
+          echo "" >> changelog.md
+          echo "**Documentação Completa:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)" >> changelog.md
+          echo "" >> changelog.md
+          echo "**Reportar Issues:** [GitHub Issues](https://github.com/${{ github.repository }}/issues)" >> changelog.md
+
+      - name: Criar arquivos para release
+        run: |
+          # Criar arquivo com informações da versão
+          echo "Version: ${GITHUB_REF#refs/tags/}" > VERSION.txt
+          echo "Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> VERSION.txt
+          echo "Commit: ${{ github.sha }}" >> VERSION.txt
+          echo "Repository: ${{ github.repository }}" >> VERSION.txt
+          
+          # Criar arquivo ZIP do código fonte
+          git archive --format=zip --output=source-code.zip HEAD
+          
+          # Criar arquivo TAR.GZ do código fonte
+          git archive --format=tar.gz --output=source-code.tar.gz HEAD
+
+      - name: Criar Release no GitHub
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.tag_info.outputs.release_name }}
+          body_path: changelog.md
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+          files: |
+            VERSION.txt
+            source-code.zip
+            source-code.tar.gz
+            LICENSE.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comentar em Issues fechadas
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: tag
+            });
+            
+            // Buscar issues fechadas desde a última release
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+              per_page: 100
+            });
+            
+            // Comentar em cada issue
+            for (const issue of issues) {
+              if (!issue.pull_request) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `🎉 Esta issue foi incluída na release [${tag}](${release.html_url})!`
+                });
+              }
+            }
+
+  notify-success:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend, create-release]
+    if: always() && (needs.deploy-frontend.result == 'success' || needs.deploy-backend.result == 'success')
+    
+    steps:
+      - name: Notificar sucesso
+        run: |
+          echo "✅ Deploy realizado com sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Ambiente:** ${{ github.event.inputs.environment || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch/Tag:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Executado por:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🎉 **Release criada:** https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  notify-failure:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend]
+    if: always() && (needs.deploy-frontend.result == 'failure' || needs.deploy-backend.result == 'failure')
+    
+    steps:
+      - name: Notificar falha
+        run: |
+          echo "❌ Deploy falhou!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Ambiente:** ${{ github.event.inputs.environment || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch/Tag:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Por favor, verifique os logs acima para mais detalhes." >> $GITHUB_STEP_SUMMARY

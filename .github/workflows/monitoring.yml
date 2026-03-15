@@ -1,0 +1,452 @@
+name: Monitoring & Performance
+
+on:
+  schedule:
+    # Executa diariamente às 6h
+    - cron: '0 6 * * *'
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  lighthouse-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build aplicação
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          if grep -q "\"build\"" package.json; then
+            npm run build
+          fi
+
+      - name: Lighthouse CI
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: treosh/lighthouse-ci-action@v10
+        continue-on-error: true
+        with:
+          urls: |
+            http://localhost:3000
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Upload Lighthouse report
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: lighthouse-report
+          path: '.lighthouseci'
+          retention-days: 30
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run performance tests
+        continue-on-error: true
+        run: |
+          if [ -f "k6-test.js" ]; then
+            k6 run k6-test.js
+          else
+            echo "Nenhum teste k6 encontrado"
+          fi
+
+  health-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Check website status
+        continue-on-error: true
+        run: |
+          # Adicione suas URLs aqui
+          URLS=(
+            "https://example.com"
+            "https://api.example.com/health"
+          )
+          
+          for url in "${URLS[@]}"; do
+            echo "Checking $url..."
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+            if [ "$response" -eq 200 ]; then
+              echo "✅ $url is up (HTTP $response)"
+            else
+              echo "❌ $url is down or unhealthy (HTTP $response)"
+            fi
+          done
+
+  uptime-monitor:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - name: Uptime Robot Monitor
+        continue-on-error: true
+        env:
+          UPTIME_ROBOT_API_KEY: ${{ secrets.UPTIME_ROBOT_API_KEY }}
+        run: |
+          if [ -z "$UPTIME_ROBOT_API_KEY" ]; then
+            echo "UPTIME_ROBOT_API_KEY não configurado, pulando verificação."
+            exit 0
+          fi
+          echo "Verificando status do Uptime Robot..."
+          curl -X POST https://api.uptimerobot.com/v2/getMonitors \
+            -d "api_key=$UPTIME_ROBOT_API_KEY" \
+            -d "format=json"
+
+  ssl-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Check SSL certificates
+        continue-on-error: true
+        run: |
+          # Adicione seus domínios aqui
+          DOMAINS=(
+            "example.com"
+            "api.example.com"
+          )
+          
+          for domain in "${DOMAINS[@]}"; do
+            echo "Checking SSL for $domain..."
+            expiry_date=$(echo | openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+            
+            if [ -n "$expiry_date" ]; then
+              expiry_epoch=$(date -d "$expiry_date" +%s)
+              current_epoch=$(date +%s)
+              days_left=$(( ($expiry_epoch - $current_epoch) / 86400 ))
+              
+              echo "SSL certificate for $domain expires in $days_left days"
+              
+              if [ $days_left -lt 30 ]; then
+                echo "⚠️ SSL certificate for $domain expires soon!"
+              else
+                echo "✅ SSL certificate for $domain is valid"
+              fi
+            else
+              echo "❌ Could not check SSL for $domain"
+            fi
+          done
+
+  docker-image-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar Dockerfile
+        id: check-dockerfile
+        run: |
+          if [ -f "Dockerfile" ]; then
+            echo "has_dockerfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_dockerfile=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        run: docker build -t local-test:latest .
+
+      - name: Scan image with Trivy
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'local-test:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Scan image with Snyk
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "SNYK_TOKEN não configurado, pulando scan com Snyk"
+            exit 0
+          fi
+          echo "Scan com Snyk requer configuração adicional - consulte a documentação do Snyk"
+
+  code-coverage:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run tests with coverage
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          if grep -q "\"test:coverage\"" package.json; then
+            npm run test:coverage
+          elif grep -q "\"test\"" package.json; then
+            npm test -- --coverage || npm test
+          fi
+
+      - name: Upload coverage to Codecov
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: codecov/codecov-action@v3
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+      - name: Upload coverage reports
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+  performance-budget:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: |
+          if grep -q "\"build\"" package.json; then
+            npm run build
+          fi
+
+      - name: Check bundle size
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: andresz1/size-limit-action@v1
+        continue-on-error: true
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          skip_step: install
+
+  accessibility-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          if grep -q "\"build\"" package.json; then
+            npm run build
+          fi
+
+      - name: Run Pa11y accessibility tests
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          npm install -g pa11y-ci
+          if [ -f ".pa11yci.json" ]; then
+            pa11y-ci
+          else
+            echo "Nenhum arquivo .pa11yci.json encontrado"
+          fi
+
+  seo-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Check meta tags and SEO
+        continue-on-error: true
+        run: |
+          if [ -d "public" ] || [ -d "dist" ]; then
+            echo "Verificando meta tags..."
+            find public dist -name "*.html" 2>/dev/null | while read file; do
+              echo "Checking $file"
+              grep -i "meta.*description" "$file" || echo "⚠️ Meta description missing in $file"
+              grep -i "meta.*keywords" "$file" || echo "⚠️ Meta keywords missing in $file"
+              grep -i "<title>" "$file" || echo "⚠️ Title tag missing in $file"
+            done
+          fi
+
+  report-summary:
+    runs-on: ubuntu-latest
+    needs: [lighthouse-audit, performance-tests, health-check, ssl-check, docker-image-scan, code-coverage, accessibility-check]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# 📊 Relatório de Monitoramento" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Status dos Jobs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Lighthouse Audit: ${{ needs.lighthouse-audit.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance Tests: ${{ needs.performance-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Health Check: ${{ needs.health-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- SSL Check: ${{ needs.ssl-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Scan: ${{ needs.docker-image-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Coverage: ${{ needs.code-coverage.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Accessibility: ${{ needs.accessibility-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Executado em:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

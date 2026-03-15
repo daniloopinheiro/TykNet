@@ -1,0 +1,66 @@
+name: Create Version Tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_v1:
+        description: 'Create tag v1.0.0'
+        required: false
+        type: boolean
+        default: false
+      create_v2:
+        description: 'Create tag v2.0.0'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  create-tags:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Create tag v1.0.0
+      if: github.event.inputs.create_v1 == 'true'
+      run: |
+        if git rev-parse "v1.0.0" >/dev/null 2>&1; then
+          echo "Tag v1.0.0 already exists, skipping..."
+        else
+          git tag -a "v1.0.0" -m "Release version 1.0.0"
+          git push origin "v1.0.0"
+          echo "Created and pushed tag v1.0.0"
+        fi
+    
+    - name: Create tag v2.0.0
+      if: github.event.inputs.create_v2 == 'true'
+      run: |
+        if git rev-parse "v2.0.0" >/dev/null 2>&1; then
+          echo "Tag v2.0.0 already exists, skipping..."
+        else
+          git tag -a "v2.0.0" -m "Release version 2.0.0"
+          git push origin "v2.0.0"
+          echo "Created and pushed tag v2.0.0"
+        fi
+    
+    - name: Summary
+      run: |
+        echo "## Tags Created" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ github.event.inputs.create_v1 }}" == "true" ]; then
+          echo "- v1.0.0 ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        if [ "${{ github.event.inputs.create_v2 }}" == "true" ]; then
+          echo "- v2.0.0 ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "The release workflow will now be triggered automatically for the created tags." >> $GITHUB_STEP_SUMMARY

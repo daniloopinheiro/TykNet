@@ -1,0 +1,154 @@
+name: Auto Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0 or 2.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Validate version format
+      run: |
+        if ! [[ "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Error: Version must be in format X.Y.Z (e.g., 1.0.0)"
+          exit 1
+        fi
+    
+    - name: Check if tag exists
+      run: |
+        if git rev-parse "v${{ github.event.inputs.version }}" >/dev/null 2>&1; then
+          echo "Error: Tag v${{ github.event.inputs.version }} already exists"
+          exit 1
+        fi
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+    
+    - name: Publish Console App - Windows x64
+      run: dotnet publish MindSetCSharp.Console/MindSetCSharp.Console.csproj -c Release -r win-x64 --self-contained true -o ./publish/win-x64
+    
+    - name: Publish Console App - Linux x64
+      run: dotnet publish MindSetCSharp.Console/MindSetCSharp.Console.csproj -c Release -r linux-x64 --self-contained true -o ./publish/linux-x64
+    
+    - name: Publish Console App - macOS x64
+      run: dotnet publish MindSetCSharp.Console/MindSetCSharp.Console.csproj -c Release -r osx-x64 --self-contained true -o ./publish/osx-x64
+    
+    - name: Publish Console App - macOS ARM64
+      run: dotnet publish MindSetCSharp.Console/MindSetCSharp.Console.csproj -c Release -r osx-arm64 --self-contained true -o ./publish/osx-arm64
+    
+    - name: Create ZIP archives
+      run: |
+        cd publish
+        zip -r ../MindSetCSharp-v${{ github.event.inputs.version }}-win-x64.zip win-x64
+        zip -r ../MindSetCSharp-v${{ github.event.inputs.version }}-linux-x64.zip linux-x64
+        zip -r ../MindSetCSharp-v${{ github.event.inputs.version }}-osx-x64.zip osx-x64
+        zip -r ../MindSetCSharp-v${{ github.event.inputs.version }}-osx-arm64.zip osx-arm64
+        cd ..
+    
+    - name: Create and push tag
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "v${{ github.event.inputs.version }}" -m "Release version ${{ github.event.inputs.version }}"
+        git push origin "v${{ github.event.inputs.version }}"
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -z "$PREV_TAG" ]; then
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "## Changes" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Initial release of MindSetCSharp" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### Features" >> $GITHUB_OUTPUT
+          echo "- Complete C# learning modules" >> $GITHUB_OUTPUT
+          echo "- Interactive console application" >> $GITHUB_OUTPUT
+          echo "- Comprehensive examples and documentation" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "## Changes from $PREV_TAG to v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ github.event.inputs.version }}
+        name: Release v${{ github.event.inputs.version }}
+        body: |
+          # MindSetCSharp v${{ github.event.inputs.version }}
+          
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ## Downloads
+          
+          Choose the appropriate package for your operating system:
+          - **Windows x64**: `MindSetCSharp-v${{ github.event.inputs.version }}-win-x64.zip`
+          - **Linux x64**: `MindSetCSharp-v${{ github.event.inputs.version }}-linux-x64.zip`
+          - **macOS Intel (x64)**: `MindSetCSharp-v${{ github.event.inputs.version }}-osx-x64.zip`
+          - **macOS Apple Silicon (ARM64)**: `MindSetCSharp-v${{ github.event.inputs.version }}-osx-arm64.zip`
+          
+          ## Installation
+          
+          1. Download the appropriate ZIP file for your OS
+          2. Extract the ZIP file
+          3. Run the executable inside the extracted folder:
+             - **Windows**: Double-click `MindSetCSharp.Console.exe`
+             - **Linux/macOS**: Run `./MindSetCSharp.Console` in terminal
+          
+          ## What's Included
+          
+          - Self-contained executable (no .NET installation required)
+          - All learning modules and examples
+          - Complete documentation
+          
+          ## Documentation
+          
+          - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
+          - [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/QUICK_START.md)
+          - [Documentation Index](https://github.com/${{ github.repository }}/blob/main/DOCUMENTATION_INDEX.md)
+        files: |
+          MindSetCSharp-v${{ github.event.inputs.version }}-win-x64.zip
+          MindSetCSharp-v${{ github.event.inputs.version }}-linux-x64.zip
+          MindSetCSharp-v${{ github.event.inputs.version }}-osx-x64.zip
+          MindSetCSharp-v${{ github.event.inputs.version }}-osx-arm64.zip
+        draft: false
+        prerelease: ${{ github.event.inputs.prerelease }}
+      env:
+        TOKE_?: ${{ secrets.TOKE_? }}

@@ -1,0 +1,175 @@
+name: 📖 Documentation
+description: Sugira melhorias ou reporte problemas na documentação
+title: "[DOCS] "
+labels: ["documentation"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 📖 Obrigado por ajudar a melhorar nossa documentação!
+        
+        Documentação clara e precisa é essencial. Nos ajude a melhorá-la.
+        
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: 📚 Tipo de Documentação
+      description: Qual tipo de documentação precisa de atenção?
+      options:
+        - README Principal
+        - Guia de Instalação
+        - Guia de Configuração
+        - API/Referência
+        - Tutorial/Guia de Uso
+        - Guia do Desenvolvedor
+        - Guia de Contribuição
+        - Arquitetura/Design
+        - Changelog
+        - Comentários no Código
+        - Workflows/CI-CD
+        - Outro
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: 🎯 Tipo de Problema
+      description: Qual é o problema com a documentação atual?
+      options:
+        - Informação faltando
+        - Informação incorreta/desatualizada
+        - Informação confusa/não clara
+        - Exemplo não funciona
+        - Erro de digitação/gramática
+        - Link quebrado
+        - Formatação ruim
+        - Falta de exemplos práticos
+        - Tradução necessária
+        - Outro
+    validations:
+      required: true
+      
+  - type: input
+    id: location
+    attributes:
+      label: 📍 Localização
+      description: URL, caminho do arquivo ou seção específica onde o problema está
+      placeholder: "Ex: README.md linha 45, ou https://github.com/.../blob/main/docs/..."
+    validations:
+      required: true
+      
+  - type: textarea
+    id: current-problem
+    attributes:
+      label: ❌ Problema Atual
+      description: Descreva claramente qual é o problema com a documentação atual
+      placeholder: |
+        A documentação atual diz que...
+        O problema é que...
+        Isso está confuso porque...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: suggested-improvement
+    attributes:
+      label: ✅ Melhoria Sugerida
+      description: Como a documentação deveria ser melhorada?
+      placeholder: |
+        Sugiro que a documentação seja alterada para...
+        Deveria incluir informações sobre...
+        Um exemplo melhor seria...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: proposed-content
+    attributes:
+      label: 📝 Conteúdo Proposto (Opcional)
+      description: Se possível, escreva o texto ou código que você sugere
+      placeholder: |
+        ## Título da Seção
+        
+        Conteúdo sugerido aqui...
+        
+        ```bash
+        # Exemplo de comando
+        ```
+    validations:
+      required: false
+
+  - type: dropdown
+    id: target-audience
+    attributes:
+      label: 👥 Público-Alvo
+      description: Para quem esta documentação é destinada?
+      options:
+        - Iniciantes
+        - Usuários Intermediários
+        - Usuários Avançados
+        - Desenvolvedores/Contributors
+        - DevOps/SysAdmins
+        - Todos os níveis
+      multiple: true
+    validations:
+      required: false
+      
+  - type: textarea
+    id: references
+    attributes:
+      label: 🔗 Referências/Exemplos
+      description: Links para documentações similares ou exemplos que poderiam ajudar
+      placeholder: |
+        - Documentação similar: https://...
+        - Bom exemplo: https://...
+        - Referência técnica: https://...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📎 Contexto Adicional
+      description: Qualquer outra informação que possa ser útil
+      placeholder: |
+        - Tentei seguir a documentação e...
+        - Outros usuários também reportaram...
+        - Contexto específico: ...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 🤝 Contribuição
+      description: Você está disposto a ajudar com esta atualização?
+      options:
+        - label: Posso enviar um PR com a correção/melhoria
+        - label: Posso ajudar a revisar as mudanças
+        - label: Posso ajudar a testar as instruções
+        - label: Apenas reportando, não posso contribuir no momento
+        
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Antes de enviar, verifique se você
+      options:
+        - label: Verifiquei se já existe uma issue similar
+          required: true
+        - label: Li toda a seção da documentação relacionada
+          required: true
+        - label: Forneci localização específica do problema
+          required: true
+          
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Código de Conduta
+      description: Ao enviar esta issue, você concorda em seguir nosso Código de Conduta
+      options:
+        - label: Concordo em seguir o Código de Conduta deste projeto
+          required: true

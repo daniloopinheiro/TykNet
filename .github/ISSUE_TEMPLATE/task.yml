@@ -1,0 +1,223 @@
+name: 🔧 Task / Chore
+description: Propor uma tarefa técnica, refatoração ou melhoria interna
+title: "[TASK] "
+labels: ["task", "chore"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔧 Propondo uma Tarefa Técnica
+        
+        Para tarefas de manutenção, refatoração ou melhorias internas que não são features visíveis ao usuário.
+        
+  - type: dropdown
+    id: task-type
+    attributes:
+      label: 🏷️ Tipo de Tarefa
+      description: Que tipo de tarefa é esta?
+      options:
+        - Refatoração de Código
+        - Atualização de Dependências
+        - Melhoria de Performance
+        - Melhoria de Segurança
+        - Limpeza de Código
+        - Melhoria de Testes
+        - Configuração/Setup
+        - Tooling/DevEx
+        - CI/CD
+        - Documentação Técnica
+        - Arquitetura
+        - Debt Técnico
+        - Outro
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Descrição da Tarefa
+      description: Descreva claramente o que precisa ser feito
+      placeholder: |
+        Esta tarefa consiste em...
+        Precisa-se fazer...
+        O objetivo é...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 🎯 Motivação / Por quê?
+      description: Por que esta tarefa é necessária?
+      placeholder: |
+        Esta tarefa é necessária porque...
+        Vai melhorar...
+        Vai resolver o problema de...
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: ⭐ Prioridade
+      description: Qual a urgência desta tarefa?
+      options:
+        - 🔴 Alta - Deve ser feito em breve
+        - 🟡 Média - Importante mas não urgente
+        - 🟢 Baixa - Pode esperar
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: 🎚️ Complexidade Estimada
+      description: Qual a complexidade desta tarefa?
+      options:
+        - Simples - Poucas horas
+        - Média - 1-2 dias
+        - Complexa - Vários dias
+        - Muito Complexa - Semanas
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 🗂️ Área Afetada
+      description: Que parte do projeto será afetada?
+      options:
+        - Frontend
+        - Backend
+        - API
+        - Database
+        - Tests
+        - CI/CD
+        - Documentation
+        - Configuration
+        - Multiple Areas
+      multiple: true
+    validations:
+      required: true
+      
+  - type: textarea
+    id: scope
+    attributes:
+      label: 📦 Escopo
+      description: Quais arquivos, módulos ou componentes serão afetados?
+      placeholder: |
+        - Arquivo X precisa ser refatorado
+        - Módulo Y precisa ser reorganizado
+        - Dependências Z precisam ser atualizadas
+    validations:
+      required: true
+      
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: ✅ Critérios de Aceitação
+      description: Como saberemos que esta tarefa está completa?
+      placeholder: |
+        - [ ] Código refatorado mantém funcionalidade
+        - [ ] Testes passam
+        - [ ] Performance melhorou em X%
+        - [ ] Documentação atualizada
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+      
+  - type: textarea
+    id: implementation-notes
+    attributes:
+      label: 🛠️ Notas de Implementação
+      description: Sugestões técnicas ou detalhes de como implementar
+      placeholder: |
+        Sugestões:
+        - Usar biblioteca X para Y
+        - Seguir padrão Z
+        - Tomar cuidado com...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: risks
+    attributes:
+      label: ⚠️ Riscos / Considerações
+      description: Quais são os riscos ou pontos de atenção?
+      placeholder: |
+        - Pode impactar performance de...
+        - Breaking change em...
+        - Requer atualização de...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: related-issues
+    attributes:
+      label: 🔗 Issues/PRs Relacionados
+      description: Links para issues ou PRs relacionados
+      placeholder: |
+        - Relacionado a #123
+        - Bloqueia #456
+        - Depende de #789
+    validations:
+      required: false
+      
+  - type: textarea
+    id: testing-strategy
+    attributes:
+      label: 🧪 Estratégia de Testes
+      description: Como testar as mudanças desta tarefa?
+      placeholder: |
+        - Unit tests para...
+        - Integration tests para...
+        - Manual testing de...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: breaking-changes
+    attributes:
+      label: 💥 Breaking Changes
+      description: Esta tarefa introduz breaking changes?
+      options:
+        - label: Esta tarefa NÃO introduz breaking changes
+        - label: Esta tarefa introduz breaking changes (descreva acima)
+          
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 🤝 Contribuição
+      description: Você pode trabalhar nesta tarefa?
+      options:
+        - label: Posso implementar esta tarefa
+        - label: Preciso de ajuda/orientação
+        - label: Apenas sugerindo, não posso implementar
+        
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Antes de enviar, verifique se você
+      options:
+        - label: Verifiquei se não há issue similar
+          required: true
+        - label: Descrição clara do que precisa ser feito
+          required: true
+        - label: Justifiquei a necessidade desta tarefa
+          required: true
+          
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Código de Conduta
+      description: Ao enviar esta issue, você concorda em seguir nosso Código de Conduta
+      options:
+        - label: Concordo em seguir o Código de Conduta deste projeto
+          required: true
+

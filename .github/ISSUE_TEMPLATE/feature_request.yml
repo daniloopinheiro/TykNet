@@ -1,0 +1,207 @@
+name: ✨ Feature Request
+description: Sugira uma nova funcionalidade para o projeto
+title: "[FEATURE] "
+labels: ["enhancement", "feature"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ✨ Obrigado por sugerir uma nova funcionalidade!
+        
+        Suas ideias nos ajudam a melhorar o projeto. Preencha as informações abaixo.
+        
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🎯 Problema / Necessidade
+      description: Esta funcionalidade resolve algum problema? Descreva o problema
+      placeholder: |
+        Sempre fico frustrado quando...
+        Não consigo fazer X porque...
+        Seria muito útil se...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 Solução Proposta
+      description: Descreva claramente a funcionalidade que você gostaria de ver implementada
+      placeholder: |
+        Eu gostaria que o sistema pudesse...
+        Seria ótimo ter uma funcionalidade que...
+        Sugiro implementar...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: 📋 Casos de Uso
+      description: Descreva cenários específicos onde esta funcionalidade seria útil
+      placeholder: |
+        1. Como [tipo de usuário], eu gostaria de [ação] para que [benefício]
+        2. Quando [situação], eu preciso [funcionalidade] porque [razão]
+        3. Esta feature permitiria que [descrição do uso]
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternativas Consideradas
+      description: Descreva soluções alternativas ou funcionalidades que você considerou
+      placeholder: |
+        Já considerei usar X, mas...
+        Uma alternativa seria Y, porém...
+        Atualmente estou fazendo Z como workaround...
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: feature-category
+    attributes:
+      label: 🏷️ Categoria da Funcionalidade
+      description: Que tipo de funcionalidade é esta?
+      options:
+        - Nova Feature/Funcionalidade
+        - Melhoria de Feature Existente
+        - Integração com Ferramenta Externa
+        - API/Endpoint
+        - Interface do Usuário (UI)
+        - Experiência do Usuário (UX)
+        - Performance/Otimização
+        - Segurança
+        - Documentação
+        - Developer Experience (DX)
+        - CI/CD/Automação
+        - Testes
+        - Outro
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: technology-area
+    attributes:
+      label: 🛠️ Área Tecnológica
+      description: Qual área do projeto seria afetada?
+      options:
+        - Frontend
+        - Backend
+        - API
+        - Database
+        - DevOps/Infrastructure
+        - CI/CD
+        - Documentação
+        - Testes
+        - Geral/Múltiplas Áreas
+        - Não sei/Não tenho certeza
+      multiple: true
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: ⭐ Prioridade
+      description: Quão importante é esta funcionalidade para você?
+      options:
+        - 🔴 Crítica - Bloqueando meu trabalho
+        - 🟠 Alta - Realmente necessário
+        - 🟡 Média - Seria muito útil
+        - 🟢 Baixa - Nice to have
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: 🎚️ Complexidade Estimada
+      description: Na sua opinião, quão complexa seria esta implementação?
+      options:
+        - Simples - Pequena mudança
+        - Média - Mudança moderada
+        - Complexa - Grande mudança
+        - Não sei estimar
+    validations:
+      required: false
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: 🌟 Exemplos / Mockups
+      description: Se possível, forneça exemplos, mockups, wireframes ou links de implementações similares
+      placeholder: |
+        - Link para ferramenta similar: https://...
+        - Mockup/Screenshot: [cole aqui]
+        - Código de exemplo: [cole aqui]
+    validations:
+      required: false
+      
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: ✅ Critérios de Aceitação
+      description: Como saberemos que esta funcionalidade está completa?
+      placeholder: |
+        - [ ] Usuário pode fazer X
+        - [ ] Sistema valida Y
+        - [ ] Performance é melhor que Z
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📎 Contexto Adicional
+      description: Qualquer outra informação, contexto ou referências
+      placeholder: |
+        - Contexto de negócio: ...
+        - Links úteis: ...
+        - Inspirações: ...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 🤝 Contribuição
+      description: Você está disposto a ajudar com esta funcionalidade?
+      options:
+        - label: Posso implementar esta funcionalidade (enviar PR)
+        - label: Posso ajudar com testes
+        - label: Posso ajudar com documentação
+        - label: Posso ajudar com revisão de código
+        - label: Posso ajudar com design/mockups
+        
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Antes de enviar, verifique se você
+      options:
+        - label: Pesquisei se já existe uma feature request similar
+          required: true
+        - label: Verifiquei a documentação e roadmap do projeto
+          required: true
+        - label: Forneci casos de uso claros
+          required: true
+          
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Código de Conduta
+      description: Ao enviar esta issue, você concorda em seguir nosso Código de Conduta
+      options:
+        - label: Concordo em seguir o Código de Conduta deste projeto
+          required: true

@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 GitHub Discussions
+    url: https://github.com/daniloopinheiro/dopBase/discussions
+    about: Faça perguntas, compartilhe ideias e discuta com a comunidade
+  - name: 📚 Documentação
+    url: https://github.com/daniloopinheiro/dopBase#readme
+    about: Consulte nossa documentação completa e guias
+  - name: 🔒 Política de Segurança
+    url: https://github.com/daniloopinheiro/dopBase/security/policy
+    about: Reporte vulnerabilidades de segurança de forma privada
+  - name: 🤝 Guia de Contribuição
+    url: https://github.com/daniloopinheiro/dopBase/blob/main/CONTRIBUTING.md
+    about: Saiba como contribuir com o projeto

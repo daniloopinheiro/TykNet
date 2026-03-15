@@ -1,0 +1,180 @@
+name: ❓ Question / Help
+description: Faça uma pergunta ou peça ajuda
+title: "[QUESTION] "
+labels: ["question", "help wanted"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ❓ Precisa de ajuda? Estamos aqui!
+        
+        Antes de fazer sua pergunta, considere:
+        - 📖 Verificar a [documentação](https://github.com/daniloopinheiro/dopBase#readme)
+        - 🔍 Pesquisar [issues existentes](https://github.com/daniloopinheiro/dopBase/issues)
+        - 💬 Ver as [discussões](https://github.com/daniloopinheiro/dopBase/discussions)
+        
+  - type: dropdown
+    id: question-type
+    attributes:
+      label: 🎯 Tipo de Pergunta
+      description: Que tipo de ajuda você precisa?
+      options:
+        - Como fazer/usar algo
+        - Por que algo não funciona
+        - Melhores práticas
+        - Problema de configuração
+        - Compatibilidade/Integração
+        - Performance/Otimização
+        - Escolha de tecnologia
+        - Arquitetura/Design
+        - Outra
+    validations:
+      required: true
+      
+  - type: textarea
+    id: question
+    attributes:
+      label: ❓ Sua Pergunta
+      description: Descreva claramente sua pergunta ou o problema que está enfrentando
+      placeholder: |
+        Estou tentando fazer X, mas não sei como...
+        Por que Y não funciona quando eu...
+        Qual a melhor forma de implementar Z...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: what-tried
+    attributes:
+      label: 🔄 O que você já tentou?
+      description: Liste as soluções que você já tentou e o que aconteceu
+      placeholder: |
+        1. Tentei fazer X mas...
+        2. Li a documentação sobre Y e...
+        3. Pesquisei no Google e encontrei Z mas...
+      value: |
+        - [ ] Li a documentação
+        - [ ] Pesquisei issues existentes
+        - [ ] Procurei no Google/Stack Overflow
+        - [ ] Tentei: (descreva o que tentou)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: context
+    attributes:
+      label: 📋 Contexto
+      description: Forneça contexto sobre o que você está tentando fazer
+      placeholder: |
+        Estou desenvolvendo um projeto que...
+        Preciso integrar com...
+        O objetivo final é...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: code-config
+    attributes:
+      label: 💻 Código/Configuração Relevante
+      description: Se aplicável, cole código ou configuração relevante
+      render: typescript
+      placeholder: |
+        // Cole seu código aqui
+        // ou suas configurações
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: technology
+    attributes:
+      label: 🛠️ Tecnologia/Stack
+      description: Qual tecnologia você está usando?
+      options:
+        - Node.js / JavaScript / TypeScript
+        - Python
+        - .NET / C#
+        - Java
+        - Go
+        - Docker
+        - Frontend (React/Vue/Angular)
+        - Multiple/Mixed
+        - Outro
+      multiple: true
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: 📦 Versão
+      description: Qual versão do projeto você está usando?
+      placeholder: "Ex: v1.0.0, main branch, latest"
+    validations:
+      required: false
+      
+  - type: input
+    id: environment
+    attributes:
+      label: 💻 Ambiente
+      description: Sistema operacional e outras informações relevantes
+      placeholder: "Ex: Windows 11, macOS 13, Ubuntu 22.04, Docker"
+    validations:
+      required: false
+      
+  - type: textarea
+    id: error-messages
+    attributes:
+      label: 🚨 Mensagens de Erro (se houver)
+      description: Cole qualquer mensagem de erro que você está vendo
+      render: shell
+      placeholder: Cole aqui as mensagens de erro...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: expected-outcome
+    attributes:
+      label: ✅ Resultado Esperado
+      description: O que você espera que aconteça ou quer alcançar?
+      placeholder: Eu quero conseguir...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: 📎 Informações Adicionais
+      description: Qualquer outra informação que possa ajudar
+      placeholder: |
+        - Links úteis: ...
+        - Tentativas anteriores: ...
+        - Deadline: ...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Antes de enviar, verifique se você
+      options:
+        - label: Li a documentação relacionada
+          required: true
+        - label: Pesquisei issues e discussões existentes
+          required: true
+        - label: Forneci contexto suficiente
+          required: true
+        - label: Incluí exemplos de código/configuração (se aplicável)
+          required: false
+          
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Código de Conduta
+      description: Ao enviar esta issue, você concorda em seguir nosso Código de Conduta
+      options:
+        - label: Concordo em seguir o Código de Conduta deste projeto
+          required: true
+

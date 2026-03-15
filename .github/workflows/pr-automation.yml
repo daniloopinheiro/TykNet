@@ -1,0 +1,303 @@
+name: PR Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+jobs:
+  pr-labeler:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Auto label PR
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+        continue-on-error: true
+
+      - name: Label por tamanho
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/xs'
+          xs_max_size: '10'
+          s_label: 'size/s'
+          s_max_size: '100'
+          m_label: 'size/m'
+          m_max_size: '500'
+          l_label: 'size/l'
+          l_max_size: '1000'
+          xl_label: 'size/xl'
+          fail_if_xl: 'false'
+
+  pr-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar título do PR
+        uses: amannn/action-semantic-pull-request@v5
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+
+      - name: Verificar branch name
+        continue-on-error: true
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          if [[ ! $BRANCH_NAME =~ ^(feature|bugfix|hotfix|release|docs|refactor|test)/.+ ]]; then
+            echo "⚠️ Nome da branch não segue o padrão recomendado"
+            echo "Padrões sugeridos: feature/, bugfix/, hotfix/, release/, docs/, refactor/, test/"
+          else
+            echo "✅ Nome da branch está correto"
+          fi
+
+      - name: Verificar conflitos
+        continue-on-error: true
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          if git merge-base --is-ancestor origin/${{ github.base_ref }} HEAD; then
+            echo "✅ Sem conflitos detectados"
+          else
+            echo "⚠️ Possíveis conflitos com a branch base"
+          fi
+
+      - name: Contar mudanças
+        id: changes
+        run: |
+          FILES_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)
+          LINES_ADDED=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum+=$1} END {print sum}')
+          LINES_REMOVED=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum+=$2} END {print sum}')
+          
+          echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
+          echo "lines_added=$LINES_ADDED" >> $GITHUB_OUTPUT
+          echo "lines_removed=$LINES_REMOVED" >> $GITHUB_OUTPUT
+
+      - name: Comentar estatísticas
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const filesChanged = '${{ steps.changes.outputs.files_changed }}';
+            const linesAdded = '${{ steps.changes.outputs.lines_added }}';
+            const linesRemoved = '${{ steps.changes.outputs.lines_removed }}';
+            
+            // Verificar se é PR de fork
+            if (context.payload.pull_request.head.repo.full_name !== context.repo.full_name) {
+              console.log('PR de fork detectado, ignorando comentário automático.');
+              return;
+            }
+            
+            const comment = `## 📊 Estatísticas do PR
+            
+            - 📁 Arquivos alterados: **${filesChanged}**
+            - ➕ Linhas adicionadas: **${linesAdded}**
+            - ➖ Linhas removidas: **${linesRemoved}**
+            - 📝 Total de mudanças: **${parseInt(linesAdded) + parseInt(linesRemoved)}**
+            
+            ${filesChanged > 50 ? '⚠️ Este PR modifica muitos arquivos. Considere dividi-lo em PRs menores.' : ''}
+            ${(parseInt(linesAdded) + parseInt(linesRemoved)) > 1000 ? '⚠️ Este PR contém muitas mudanças. Considere dividi-lo em PRs menores para facilitar a revisão.' : ''}
+            `;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  code-review-assistant:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Verificar TODOs
+        continue-on-error: true
+        run: |
+          TODO_COUNT=$(git diff origin/${{ github.base_ref }}...HEAD | grep -i "^\+.*TODO\|^\+.*FIXME\|^\+.*XXX" | wc -l)
+          if [ $TODO_COUNT -gt 0 ]; then
+            echo "⚠️ Este PR adiciona $TODO_COUNT novos TODOs/FIXMEs"
+            git diff origin/${{ github.base_ref }}...HEAD | grep -i "^\+.*TODO\|^\+.*FIXME\|^\+.*XXX"
+          fi
+
+      - name: Verificar console.log
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          CONSOLE_COUNT=$(git diff origin/${{ github.base_ref }}...HEAD | grep "^\+.*console\.log" | wc -l)
+          if [ $CONSOLE_COUNT -gt 0 ]; then
+            echo "⚠️ Este PR adiciona $CONSOLE_COUNT novos console.log()"
+            echo "Considere remover ou usar um logger apropriado"
+          fi
+
+      - name: Verificar imports não utilizados
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          npm install -g depcheck
+          if [ -f "package.json" ]; then
+            npm install
+            depcheck --json
+          fi
+
+  auto-merge-dependabot:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    
+    steps:
+      - name: Aprovar automaticamente
+        uses: hmarr/auto-approve-action@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-merge
+        uses: pascalgn/automerge-action@v0.15.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_LABELS: "dependencies,automated"
+          MERGE_METHOD: "squash"
+          MERGE_COMMIT_MESSAGE: "pull-request-title"
+          MERGE_RETRIES: "6"
+          MERGE_RETRY_SLEEP: "10000"
+
+  pr-comment-triggers:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Processar comandos
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment.body.toLowerCase();
+            const commenter = context.payload.comment.user.login;
+            
+            // Verificar se o comentário é de um colaborador
+            const { data: collaborators } = await github.rest.repos.listCollaborators({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const isCollaborator = collaborators.some(c => c.login === commenter);
+            
+            if (!isCollaborator) {
+              console.log('Comentário de não-colaborador, ignorando comandos');
+              return;
+            }
+            
+            // Comando: /review
+            if (comment.includes('/review')) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '🔍 Iniciando revisão automática do código...'
+              });
+            }
+            
+            // Comando: /rebase
+            if (comment.includes('/rebase')) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '🔄 Para fazer rebase, por favor execute localmente:\n```bash\ngit fetch origin\ngit rebase origin/main\ngit push --force-with-lease\n```'
+              });
+            }
+            
+            // Comando: /help
+            if (comment.includes('/help')) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## 🤖 Comandos Disponíveis
+                
+                - \`/review\` - Solicitar revisão automática
+                - \`/rebase\` - Instruções para rebase
+                - \`/help\` - Mostrar esta mensagem
+                `
+              });
+            }
+
+  pr-ready-to-merge:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
+    
+    steps:
+      - name: Adicionar label "ready-to-merge"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ready-to-merge']
+            });
+
+      - name: Comentar aprovação
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Verificar se é PR de fork
+            if (context.payload.pull_request && context.payload.pull_request.head.repo.full_name !== context.repo.full_name) {
+              console.log('PR de fork detectado, ignorando comentário automático.');
+              return;
+            }
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ PR aprovado! Pronto para merge após os checks passarem.'
+            });

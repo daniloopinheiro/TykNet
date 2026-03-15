@@ -1,0 +1,246 @@
+name: Auto Tag & Version
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Tipo de versão (major, minor, patch)'
+        required: false
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+        default: 'auto'
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Obter última tag
+        id: get_latest_tag
+        run: |
+          # Obter a última tag, se não existir, começar com v0.0.0
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "📌 Última tag encontrada: $LATEST_TAG"
+
+      - name: Analisar commits desde última tag
+        id: analyze_commits
+        run: |
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          # Se a tag é v0.0.0 (não existe), pegar todos os commits
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"%s" --no-merges)
+          else
+            COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
+          fi
+          
+          echo "Analisando commits:"
+          echo "$COMMITS"
+          
+          # Verificar se há commits
+          if [ -z "$COMMITS" ]; then
+            echo "has_new_commits=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Nenhum commit novo desde a última tag"
+            exit 0
+          fi
+          
+          echo "has_new_commits=true" >> $GITHUB_OUTPUT
+          
+          # Analisar tipo de mudanças
+          HAS_BREAKING=false
+          HAS_FEAT=false
+          HAS_FIX=false
+          
+          # Verificar breaking changes
+          if echo "$COMMITS" | grep -qiE "^[a-z]+(\([a-z]+\))?!:|BREAKING CHANGE:"; then
+            HAS_BREAKING=true
+            echo "🔴 Breaking changes detectados"
+          fi
+          
+          # Verificar novas features
+          if echo "$COMMITS" | grep -qiE "^feat(\([a-z]+\))?:"; then
+            HAS_FEAT=true
+            echo "✨ Novas funcionalidades detectadas"
+          fi
+          
+          # Verificar correções
+          if echo "$COMMITS" | grep -qiE "^fix(\([a-z]+\))?:"; then
+            HAS_FIX=true
+            echo "🐛 Correções detectadas"
+          fi
+          
+          # Determinar tipo de versão
+          VERSION_TYPE="patch"
+          if [ "$HAS_BREAKING" = true ]; then
+            VERSION_TYPE="major"
+          elif [ "$HAS_FEAT" = true ]; then
+            VERSION_TYPE="minor"
+          elif [ "$HAS_FIX" = true ]; then
+            VERSION_TYPE="patch"
+          fi
+          
+          echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+          echo "📊 Tipo de versão sugerido: $VERSION_TYPE"
+
+      - name: Calcular nova versão
+        id: calculate_version
+        if: steps.analyze_commits.outputs.has_new_commits == 'true'
+        run: |
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          VERSION_TYPE="${{ github.event.inputs.version_type || steps.analyze_commits.outputs.version_type }}"
+          
+          # Remover 'v' prefix se existir
+          VERSION=${LATEST_TAG#v}
+          
+          # Separar major, minor, patch
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Incrementar versão baseado no tipo
+          case $VERSION_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch|auto)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "🎯 Nova versão calculada: $NEW_VERSION"
+
+      - name: Verificar se tag já existe
+        id: check_tag
+        if: steps.analyze_commits.outputs.has_new_commits == 'true'
+        run: |
+          NEW_VERSION="${{ steps.calculate_version.outputs.new_version }}"
+          
+          if git rev-parse "$NEW_VERSION" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Tag $NEW_VERSION já existe!"
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Tag $NEW_VERSION não existe, pode criar"
+          fi
+
+      - name: Criar tag
+        id: create_tag
+        if: steps.analyze_commits.outputs.has_new_commits == 'true' && steps.check_tag.outputs.tag_exists == 'false'
+        run: |
+          NEW_VERSION="${{ steps.calculate_version.outputs.new_version }}"
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          # Gerar mensagem da tag com resumo dos commits
+          echo "Gerando mensagem da tag..."
+          
+          # Criar arquivo temporário com a mensagem
+          cat > /tmp/tag_message.txt << 'TAG_EOF'
+          Release $NEW_VERSION
+          TAG_EOF
+          
+          echo "" >> /tmp/tag_message.txt
+          
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            echo "🎉 Primeira release!" >> /tmp/tag_message.txt
+            echo "" >> /tmp/tag_message.txt
+            git log --pretty=format:"- %s" --no-merges | head -n 20 >> /tmp/tag_message.txt
+          else
+            echo "Mudanças desde $LATEST_TAG:" >> /tmp/tag_message.txt
+            echo "" >> /tmp/tag_message.txt
+            git log $LATEST_TAG..HEAD --pretty=format:"- %s" --no-merges >> /tmp/tag_message.txt
+          fi
+          
+          # Substituir placeholder na mensagem
+          sed -i "s/\$NEW_VERSION/$NEW_VERSION/g" /tmp/tag_message.txt
+          sed -i "s/\$LATEST_TAG/$LATEST_TAG/g" /tmp/tag_message.txt
+          
+          # Criar tag anotada
+          git tag -a "$NEW_VERSION" -F /tmp/tag_message.txt
+          
+          # Push da tag
+          git push origin "$NEW_VERSION"
+          
+          echo "tag_created=true" >> $GITHUB_OUTPUT
+          echo "✅ Tag $NEW_VERSION criada e enviada com sucesso!"
+
+      - name: Resumo da execução
+        if: always()
+        run: |
+          echo "# 📋 Resumo da Criação de Tag" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.analyze_commits.outputs.has_new_commits }}" = "false" ]; then
+            echo "⚠️ **Nenhum commit novo desde a última tag**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Tag não foi criada pois não há mudanças." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_tag.outputs.tag_exists }}" = "true" ]; then
+            echo "⚠️ **Tag já existe**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "A tag ${{ steps.calculate_version.outputs.new_version }} já existe no repositório." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.create_tag.outputs.tag_created }}" = "true" ]; then
+            echo "✅ **Tag criada com sucesso!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tag anterior:** ${{ steps.get_latest_tag.outputs.latest_tag }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Nova tag:** ${{ steps.calculate_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tipo de versão:** ${{ steps.analyze_commits.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🎉 A release será criada automaticamente pelo workflow de CD!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Ver release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.calculate_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Comentar no último PR mergeado
+        if: steps.create_tag.outputs.tag_created == 'true'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newVersion = '${{ steps.calculate_version.outputs.new_version }}';
+            
+            // Buscar o último PR mergeado
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 1
+            });
+            
+            if (pulls.length > 0 && pulls[0].merged_at) {
+              const pr = pulls[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `🎉 Este PR foi incluído na release [${newVersion}](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${newVersion})!`
+              });
+            }
+

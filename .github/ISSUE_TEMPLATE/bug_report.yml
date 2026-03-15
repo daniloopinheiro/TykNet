@@ -1,0 +1,195 @@
+name: 🐛 Bug Report
+description: Reporte um bug para nos ajudar a melhorar
+title: "[BUG] "
+labels: ["bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐛 Obrigado por reportar um bug!
+        
+        Preencha as informações abaixo para nos ajudar a entender e corrigir o problema rapidamente.
+        
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Descrição do Bug
+      description: Descreva claramente o que aconteceu e o que você esperava que acontecesse
+      placeholder: |
+        Quando eu faço X, acontece Y, mas eu esperava Z...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 🔄 Passos para Reproduzir
+      description: Forneça os passos exatos para reproduzir o bug
+      placeholder: |
+        1. Vá para '...'
+        2. Clique em '...'
+        3. Execute o comando '...'
+        4. Veja o erro
+      value: |
+        1. 
+        2. 
+        3. 
+        4. 
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ Comportamento Esperado
+      description: O que você esperava que acontecesse?
+      placeholder: Eu esperava que...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: ❌ Comportamento Atual
+      description: O que realmente aconteceu?
+      placeholder: O que aconteceu foi...
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: version
+    attributes:
+      label: 📦 Versão
+      description: Qual versão você está usando?
+      options:
+        - main (branch principal)
+        - develop (branch de desenvolvimento)
+        - latest release
+        - v1.0.0
+        - v0.9.0
+        - Outra (especificar abaixo)
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 💻 Ambiente
+      description: Em qual ambiente você está executando?
+      options:
+        - Windows
+        - macOS
+        - Linux (Ubuntu)
+        - Linux (Debian)
+        - Linux (CentOS/RHEL)
+        - Linux (Outra distribuição)
+        - Docker
+        - WSL (Windows Subsystem for Linux)
+        - Cloud (AWS/Azure/GCP)
+        - Outro (especificar abaixo)
+      multiple: false
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: 🖥️ Versão do SO
+      description: Qual a versão específica do sistema operacional?
+      placeholder: "Ex: Windows 11, macOS 13.2, Ubuntu 22.04"
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: technology
+    attributes:
+      label: 🛠️ Tecnologia Principal
+      description: Qual tecnologia você está usando?
+      options:
+        - Node.js / JavaScript / TypeScript
+        - Python
+        - .NET / C#
+        - Java
+        - Go
+        - Docker
+        - Frontend (React/Vue/Angular)
+        - Outra (especificar abaixo)
+      multiple: false
+    validations:
+      required: false
+
+  - type: input
+    id: technology-version
+    attributes:
+      label: 📌 Versão da Tecnologia
+      description: Qual a versão da linguagem/framework?
+      placeholder: "Ex: Node.js 20.x, Python 3.11, .NET 8.0"
+    validations:
+      required: false
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Logs / Mensagens de Erro
+      description: Cole aqui os logs ou mensagens de erro relevantes
+      render: shell
+      placeholder: |
+        Cole aqui qualquer log ou stack trace...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 Screenshots
+      description: Se aplicável, adicione screenshots para explicar o problema
+      placeholder: Arraste e solte imagens aqui ou cole URLs
+    validations:
+      required: false
+
+  - type: textarea
+    id: possible-solution
+    attributes:
+      label: 💡 Possível Solução
+      description: Se você tem uma ideia de como resolver, compartilhe aqui (opcional)
+      placeholder: Uma possível solução seria...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📎 Contexto Adicional
+      description: Qualquer outra informação relevante sobre o problema
+      placeholder: |
+        - Isso começou a acontecer depois de...
+        - Isso só acontece quando...
+        - Informações de configuração relevantes...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Antes de enviar, verifique se você
+      options:
+        - label: Pesquisei issues existentes e não encontrei duplicatas
+          required: true
+        - label: Li a documentação e não encontrei a resposta
+          required: true
+        - label: Forneci todas as informações necessárias acima
+          required: true
+        - label: Estou usando a versão mais recente (ou especifiquei a versão acima)
+          required: false
+          
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Código de Conduta
+      description: Ao enviar esta issue, você concorda em seguir nosso Código de Conduta
+      options:
+        - label: Concordo em seguir o Código de Conduta deste projeto
+          required: true

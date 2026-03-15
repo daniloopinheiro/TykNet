@@ -1,0 +1,132 @@
+# Configuração para labeling automático de PRs
+
+# Frontend
+'frontend':
+  - '**/*.vue'
+  - '**/*.jsx'
+  - '**/*.tsx'
+  - 'src/components/**/*'
+  - 'src/pages/**/*'
+  - 'src/views/**/*'
+  - 'public/**/*'
+  - '**/*.css'
+  - '**/*.scss'
+  - '**/*.sass'
+  - '**/*.less'
+
+# Backend
+'backend':
+  - 'src/api/**/*'
+  - 'src/controllers/**/*'
+  - 'src/services/**/*'
+  - 'src/models/**/*'
+  - 'src/repositories/**/*'
+  - 'server/**/*'
+  - 'api/**/*'
+
+# Database
+'database':
+  - '**/*migration*'
+  - '**/*schema*'
+  - 'prisma/**/*'
+  - 'database/**/*'
+  - '**/*.sql'
+
+# Documentation
+'documentation':
+  - '**/*.md'
+  - 'docs/**/*'
+  - '**/README*'
+  - '**/CHANGELOG*'
+
+# Testing
+'testing':
+  - '**/*.test.*'
+  - '**/*.spec.*'
+  - 'tests/**/*'
+  - 'test/**/*'
+  - '__tests__/**/*'
+  - '**/*.test.ts'
+  - '**/*.test.js'
+  - '**/*.spec.ts'
+  - '**/*.spec.js'
+
+# CI/CD
+'ci/cd':
+  - '.github/**/*'
+  - '**/*.yml'
+  - '**/*.yaml'
+  - 'Dockerfile*'
+  - 'docker-compose*'
+  - '.gitlab-ci.yml'
+  - 'Jenkinsfile'
+
+# Dependencies
+'dependencies':
+  - 'package.json'
+  - 'package-lock.json'
+  - 'yarn.lock'
+  - 'pnpm-lock.yaml'
+  - 'requirements.txt'
+  - 'Pipfile'
+  - 'Pipfile.lock'
+  - 'pom.xml'
+  - 'build.gradle'
+  - 'go.mod'
+  - 'go.sum'
+  - '*.csproj'
+
+# Configuration
+'configuration':
+  - '**/*.config.*'
+  - '**/*.conf'
+  - '.env*'
+  - 'tsconfig.json'
+  - 'jsconfig.json'
+  - '.eslintrc*'
+  - '.prettierrc*'
+  - 'babel.config.*'
+  - 'webpack.config.*'
+  - 'vite.config.*'
+
+# Security
+'security':
+  - '.github/workflows/security.yml'
+  - '**/security/**/*'
+  - '**/*security*'
+
+# JavaScript/TypeScript
+'javascript':
+  - '**/*.js'
+  - '**/*.jsx'
+
+'typescript':
+  - '**/*.ts'
+  - '**/*.tsx'
+
+# Python
+'python':
+  - '**/*.py'
+
+# Java
+'java':
+  - '**/*.java'
+
+# C#/.NET
+'dotnet':
+  - '**/*.cs'
+  - '**/*.csproj'
+  - '**/*.sln'
+
+# Go
+'go':
+  - '**/*.go'
+
+# Infrastructure
+'infrastructure':
+  - 'terraform/**/*'
+  - 'ansible/**/*'
+  - 'kubernetes/**/*'
+  - 'k8s/**/*'
+  - 'helm/**/*'
+

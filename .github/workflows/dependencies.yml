@@ -1,0 +1,291 @@
+name: Dependencies Check & Update
+
+on:
+  schedule:
+    # Executa toda segunda-feira às 9h
+    - cron: '0 9 * * 1'
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+      - '**/requirements.txt'
+      - '**/pom.xml'
+      - '**/build.gradle'
+      - '**/go.mod'
+      - '**/*.csproj'
+  workflow_dispatch:
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  check-vulnerabilities:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar tipos de projeto
+        id: check-project
+        run: |
+          echo "has_package_json=$([ -f 'package.json' ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "has_requirements=$([ -f 'requirements.txt' ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "has_pom=$([ -f 'pom.xml' ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "has_csproj=$(find . -name '*.csproj' -type f | head -n 1 | grep -q . && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "has_gomod=$([ -f 'go.mod' ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+      # Node.js
+      - name: Setup Node.js
+        if: steps.check-project.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Audit npm
+        if: steps.check-project.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm audit --audit-level=moderate
+          fi
+
+      - name: Check outdated packages (Node.js)
+        if: steps.check-project.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: npm outdated
+
+      # Python
+      - name: Setup Python
+        if: steps.check-project.outputs.has_requirements == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check Python vulnerabilities
+        if: steps.check-project.outputs.has_requirements == 'true'
+        continue-on-error: true
+        run: |
+          pip install safety
+          safety check --file=requirements.txt
+
+      # .NET
+      - name: Setup .NET
+        if: steps.check-project.outputs.has_csproj == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Check .NET vulnerabilities
+        if: steps.check-project.outputs.has_csproj == 'true'
+        continue-on-error: true
+        run: dotnet list package --vulnerable
+
+      # Java (Maven)
+      - name: Setup Java
+        if: steps.check-project.outputs.has_pom == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Check Maven vulnerabilities
+        if: steps.check-project.outputs.has_pom == 'true'
+        continue-on-error: true
+        run: mvn dependency:analyze-report
+
+      # Go
+      - name: Setup Go
+        if: steps.check-project.outputs.has_gomod == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Check Go vulnerabilities
+        if: steps.check-project.outputs.has_gomod == 'true'
+        continue-on-error: true
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  auto-update-dependencies:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verificar tipos de projeto
+        id: check-project
+        run: |
+          echo "has_package_json=$([ -f 'package.json' ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "has_requirements=$([ -f 'requirements.txt' ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        if: steps.check-project.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Update npm dependencies
+        if: steps.check-project.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm update
+            npm audit fix --audit-level=moderate
+          fi
+
+      - name: Setup Python
+        if: steps.check-project.outputs.has_requirements == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Update Python dependencies
+        if: steps.check-project.outputs.has_requirements == 'true'
+        continue-on-error: true
+        run: |
+          pip install pip-upgrader
+          pip-upgrade --skip-package-installation
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: atualizar dependências'
+          title: '🔄 Atualização automática de dependências'
+          body: |
+            ## Atualizações de Dependências
+            
+            Este PR foi criado automaticamente para atualizar as dependências do projeto.
+            
+            ### Mudanças
+            - Dependências atualizadas para versões mais recentes
+            - Vulnerabilidades de segurança corrigidas (se houver)
+            
+            ### Checklist
+            - [ ] Verificar breaking changes
+            - [ ] Executar testes localmente
+            - [ ] Revisar changelog das dependências atualizadas
+            
+            **Gerado automaticamente pelo GitHub Actions**
+          branch: auto-update-dependencies
+          delete-branch: true
+          labels: dependencies, automated
+
+  license-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install license checker
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: npm install -g license-checker
+
+      - name: Check licenses (Node.js)
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          npm install
+          license-checker --summary
+
+      - name: Generate license report
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          license-checker --json > licenses.json
+
+      - name: Upload license report
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: license-report
+          path: licenses.json
+          retention-days: 30
+
+  performance-budget:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar se é projeto Node.js
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-node.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        if: steps.check-node.outputs.has_package_json == 'true'
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Check bundle size
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          if grep -q "\"build\"" package.json; then
+            npm run build
+            echo "📦 Tamanho do bundle:"
+            if [ -d "dist" ]; then
+              du -sh dist/*
+            elif [ -d "build" ]; then
+              du -sh build/*
+            fi
+          fi
+
+      - name: Analyze bundle
+        if: steps.check-node.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          npm install -g webpack-bundle-analyzer
+          if [ -f "webpack.config.js" ]; then
+            echo "Webpack config encontrado"
+          fi

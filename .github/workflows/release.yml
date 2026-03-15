@@ -1,0 +1,108 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v2.0.0, etc.
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for changelog generation
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    
+    - name: Extract version from tag
+      id: extract_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+    
+    - name: Publish Console App - Windows x64
+      run: dotnet publish MindSetCSharp.Console/MindSetCSharp.Console.csproj -c Release -r win-x64 --self-contained true -o ./publish/win-x64
+    
+    - name: Publish Console App - Linux x64
+      run: dotnet publish MindSetCSharp.Console/MindSetCSharp.Console.csproj -c Release -r linux-x64 --self-contained true -o ./publish/linux-x64
+    
+    - name: Publish Console App - macOS x64
+      run: dotnet publish MindSetCSharp.Console/MindSetCSharp.Console.csproj -c Release -r osx-x64 --self-contained true -o ./publish/osx-x64
+    
+    - name: Create ZIP archives
+      run: |
+        cd publish
+        zip -r ../MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-win-x64.zip win-x64
+        zip -r ../MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-linux-x64.zip linux-x64
+        zip -r ../MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-osx-x64.zip osx-x64
+        cd ..
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get previous tag
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -z "$PREV_TAG" ]; then
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "## Changes" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Initial release" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "## Changes from $PREV_TAG to ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release v${{ steps.extract_version.outputs.VERSION }}
+        body: |
+          # MindSetCSharp v${{ steps.extract_version.outputs.VERSION }}
+          
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ## Downloads
+          
+          Choose the appropriate package for your operating system:
+          - **Windows**: `MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-win-x64.zip`
+          - **Linux**: `MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-linux-x64.zip`
+          - **macOS**: `MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-osx-x64.zip`
+          
+          ## Installation
+          
+          1. Download the appropriate ZIP file for your OS
+          2. Extract the ZIP file
+          3. Run the executable inside the extracted folder
+          
+          ## Documentation
+          
+          For more information, see the [README](https://github.com/${{ github.repository }}/blob/main/README.md)
+        files: |
+          MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-win-x64.zip
+          MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-linux-x64.zip
+          MindSetCSharp-v${{ steps.extract_version.outputs.VERSION }}-osx-x64.zip
+        draft: false
+        prerelease: false
+      env:
+        TOKEN_?: ${{ secrets.TOKEN_? }}
