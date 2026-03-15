@@ -6,7 +6,7 @@
   "active": true,
   "proxy": {
     "listen_path": "/orders/",
-    "target_url": "http://order-api:8080/",
+    "target_url": "http://host.docker.internal:5103/",
     "strip_listen_path": true
   },
   "version_data": {

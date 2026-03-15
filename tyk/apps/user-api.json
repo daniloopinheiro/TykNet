@@ -6,7 +6,7 @@
   "active": true,
   "proxy": {
     "listen_path": "/users/",
-    "target_url": "http://user-api:8080/",
+    "target_url": "http://host.docker.internal:5102/",
     "strip_listen_path": true
   },
   "version_data": {

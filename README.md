@@ -105,23 +105,58 @@ cd TykNet
 
 Para instruções detalhadas de configuração e execução, consulte o arquivo **[SETUP.md](SETUP.md)**.
 
-**Execução rápida com Docker Compose:**
+#### 📍 Configuração de Portas
+
+O projeto suporta duas formas de execução:
+
+**1. APIs Locais (Desenvolvimento)**
+- As APIs .NET rodam diretamente na sua máquina
+- **Product API**: `http://localhost:5101`
+- **User API**: `http://localhost:5102`
+- **Order API**: `http://localhost:5103`
+- **Tyk Gateway**: `http://localhost:8181` (em container Docker)
+- O Tyk acessa as APIs locais via `host.docker.internal`
+
+**2. APIs em Containers (Produção)**
+- Todas as APIs rodam em containers Docker
+- **Product API**: Porta local `5001` → Container `8080`
+- **User API**: Porta local `5002` → Container `8080`
+- **Order API**: Porta local `5003` → Container `8080`
+- **Tyk Gateway**: Porta local `8181` → Container `8181`
+- **Redis**: Porta local `6379` → Container `6379`
+
+#### 🐳 Executando com Docker Compose
+
+**Opção 1: Apenas Tyk Gateway + Redis (APIs locais)**
+
+```bash
+docker compose up -d
+```
+
+Isso inicia apenas:
+- ✅ Tyk Gateway na porta **8181**
+- ✅ Redis na porta **6379**
+
+Certifique-se de que suas APIs .NET estão rodando localmente nas portas 5101, 5102 e 5103.
+
+**Opção 2: Tudo em Containers**
+
+Descomente as APIs no `docker-compose.yml` e execute:
 
 ```bash
 docker compose up --build
 ```
 
-Isso irá iniciar:
-- ✅ ProductApi na porta 5001
-- ✅ UserApi na porta 5002
-- ✅ OrderApi na porta 5003
-- ✅ Tyk Gateway na porta 8080
-
 **Testando via Gateway:**
 ```bash
-curl http://localhost:8080/products/
-curl http://localhost:8080/users/
-curl http://localhost:8080/orders/
+# Product API
+curl http://localhost:8181/products/
+
+# User API
+curl http://localhost:8181/users/
+
+# Order API
+curl http://localhost:8181/orders/
 ```
 
 ## Como Usar
@@ -162,16 +197,31 @@ A API estará disponível em:
 
 👉 `http://localhost:5000/products`
 
+> **Nota**: Para usar com o Tyk Gateway, configure a API para rodar em uma porta específica (ex: 5101, 5102, 5103) no arquivo `launchSettings.json` do seu projeto.
+
 ### 🧩 Instalando o Tyk API Gateway
 
 A maneira mais simples de executar o gateway é utilizando Docker.
 
 📌 **Documentação oficial do Tyk Gateway**: [https://tyk.io/docs/tyk-gateway/](https://tyk.io/docs/tyk-gateway/)
 
+**Executando com Docker Compose (Recomendado):**
+
+```bash
+docker compose up -d
+```
+
+O Tyk Gateway estará disponível em `http://localhost:8181`.
+
+**Ou executando manualmente:**
+
 ```bash
 docker run -d \
-  -p 8080:8080 \
-  tykio/tyk-gateway
+  -p 8181:8181 \
+  -v $(pwd)/tyk/tyk.conf:/opt/tyk-gateway/tyk.conf \
+  -v $(pwd)/tyk/apps:/opt/tyk-gateway/apps \
+  --add-host=host.docker.internal:host-gateway \
+  tykio/tyk-gateway:v5.3.0
 ```
 
 Após subir o container, o gateway já estará pronto para configuração.
@@ -182,7 +232,7 @@ Após subir o container, o gateway já estará pronto para configuração.
 
 O Tyk utiliza arquivos JSON para definir APIs.
 
-**Exemplo de configuração:**
+**Exemplo de configuração para API local:**
 
 ```json
 {
@@ -192,7 +242,23 @@ O Tyk utiliza arquivos JSON para definir APIs.
   "use_keyless": true,
   "proxy": {
     "listen_path": "/products/",
-    "target_url": "http://host.docker.internal:5000/",
+    "target_url": "http://host.docker.internal:5101/",
+    "strip_listen_path": true
+  }
+}
+```
+
+**Exemplo de configuração para API em container:**
+
+```json
+{
+  "name": "Product API",
+  "api_id": "product-api",
+  "org_id": "default",
+  "use_keyless": true,
+  "proxy": {
+    "listen_path": "/products/",
+    "target_url": "http://product-api:8080/",
     "strip_listen_path": true
   }
 }
@@ -200,30 +266,56 @@ O Tyk utiliza arquivos JSON para definir APIs.
 
 ### Explicando os principais campos:
 
-| Campo         | Descrição                   |
-| ------------- | --------------------------- |
-| `name`        | Nome da API                 |
-| `api_id`      | Identificador único         |
-| `use_keyless` | Permite acesso sem chave    |
-| `listen_path` | Endpoint exposto no gateway |
-| `target_url`  | URL da API real             |
+| Campo         | Descrição                   | Exemplo                                    |
+| ------------- | --------------------------- | ------------------------------------------ |
+| `name`        | Nome da API                 | "Product API"                              |
+| `api_id`      | Identificador único         | "product-api"                              |
+| `use_keyless` | Permite acesso sem chave    | `true` ou `false`                          |
+| `listen_path` | Endpoint exposto no gateway | "/products/"                                |
+| `target_url`  | URL da API real             | `http://host.docker.internal:5101/` (local)<br/>`http://product-api:8080/` (container) |
+
+### 🔗 Entendendo as URLs de Destino
+
+- **`host.docker.internal`**: Permite que o container Docker acesse serviços rodando na máquina host (Windows/Mac). Use quando suas APIs estão rodando localmente.
+- **Nome do serviço** (ex: `product-api`): Use quando as APIs estão em containers na mesma rede Docker. O Docker resolve automaticamente o nome do serviço para o IP do container.
 
 ### 🔄 Fluxo da Requisição
 
+**Com APIs Locais:**
 ```
     Cliente
        │
        ▼
-    http://localhost:8080/products
+    http://localhost:8181/products
        │
        ▼
-    Tyk API Gateway
+    Tyk API Gateway (Container:8181)
        │
        ▼
-    API .NET 10
+    host.docker.internal:5101
+       │
+       ▼
+    Product API (Local:5101)
 ```
 
-Ou seja: **o cliente não acessa diretamente a API**.
+**Com APIs em Containers:**
+```
+    Cliente
+       │
+       ▼
+    http://localhost:8181/products
+       │
+       ▼
+    Tyk API Gateway (Container)
+       │
+       ▼
+    product-api:8080 (Rede Docker)
+       │
+       ▼
+    Product API (Container:8080)
+```
+
+Ou seja: **o cliente não acessa diretamente a API**. Todas as requisições passam pelo Tyk Gateway.
 
 ## Segurança e Autenticação
 
@@ -270,10 +362,30 @@ Esses dados são essenciais em ambientes com:
 
 ### 🧪 Testando a Integração
 
-Após configurar o gateway, basta chamar:
+Após configurar o gateway e iniciar suas APIs, teste os endpoints:
 
+**Com APIs Locais:**
 ```bash
-GET http://localhost:8080/products
+# Certifique-se de que suas APIs estão rodando:
+# - Product API em http://localhost:5101
+# - User API em http://localhost:5102
+# - Order API em http://localhost:5103
+
+# Teste via Gateway
+curl http://localhost:8181/products/
+curl http://localhost:8181/users/
+curl http://localhost:8181/orders/
+```
+
+**Com APIs em Containers:**
+```bash
+# Inicie tudo com Docker Compose
+docker compose up -d
+
+# Teste via Gateway
+curl http://localhost:8181/products/
+curl http://localhost:8181/users/
+curl http://localhost:8181/orders/
 ```
 
 **Resposta esperada:**
@@ -286,6 +398,16 @@ GET http://localhost:8080/products
 ```
 
 Mesmo resultado da API original — porém agora **gerenciado pelo gateway**.
+
+### 📊 Resumo das Portas
+
+| Serviço          | Porta Local | Porta Container | Acesso                      |
+| ---------------- | ----------- | --------------- | --------------------------- |
+| Tyk Gateway      | 8181        | 8181            | http://localhost:8181       |
+| Redis            | 6379        | 6379            | localhost:6379               |
+| Product API      | 5101        | 8080            | http://localhost:5101       |
+| User API         | 5102        | 8080            | http://localhost:5102       |
+| Order API        | 5103        | 8080            | http://localhost:5103        |
 
 ### ⚡ Benefícios de Usar Tyk com .NET
 
