@@ -1,0 +1,20 @@
+{
+  "name": "Product API",
+  "api_id": "product-api",
+  "org_id": "default",
+  "use_keyless": true,
+  "active": true,
+  "proxy": {
+    "listen_path": "/products/",
+    "target_url": "http://product-api:8080/",
+    "strip_listen_path": true
+  },
+  "version_data": {
+    "not_versioned": true,
+    "versions": {
+      "Default": {
+        "name": "Default"
+      }
+    }
+  }
+}

@@ -101,6 +101,29 @@ git clone https://github.com/daniloopinheiro/TykNet.git
 cd TykNet
 ```
 
+### 🚀 Executando o Projeto
+
+Para instruções detalhadas de configuração e execução, consulte o arquivo **[SETUP.md](SETUP.md)**.
+
+**Execução rápida com Docker Compose:**
+
+```bash
+docker compose up --build
+```
+
+Isso irá iniciar:
+- ✅ ProductApi na porta 5001
+- ✅ UserApi na porta 5002
+- ✅ OrderApi na porta 5003
+- ✅ Tyk Gateway na porta 8080
+
+**Testando via Gateway:**
+```bash
+curl http://localhost:8080/products/
+curl http://localhost:8080/users/
+curl http://localhost:8080/orders/
+```
+
 ## Como Usar
 
 ### ⚙️ Criando a API com .NET 10

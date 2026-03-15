@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Product API
+  product-api:
+    build:
+      context: .
+      dockerfile: src/ProductApi/Dockerfile
+    container_name: tyknet-product-api
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    networks:
+      - tyknet-network
+    healthcheck:
+      test: ["CMD", "dotnet", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # User API
+  user-api:
+    build:
+      context: .
+      dockerfile: src/UserApi/Dockerfile
+    container_name: tyknet-user-api
+    ports:
+      - "5002:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    networks:
+      - tyknet-network
+    healthcheck:
+      test: ["CMD", "dotnet", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Order API
+  order-api:
+    build:
+      context: .
+      dockerfile: src/OrderApi/Dockerfile
+    container_name: tyknet-order-api
+    ports:
+      - "5003:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    networks:
+      - tyknet-network
+    healthcheck:
+      test: ["CMD", "dotnet", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Tyk Gateway
+  tyk-gateway:
+    image: tykio/tyk-gateway:v5.3.0
+    container_name: tyknet-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./tyk/tyk.conf:/opt/tyk-gateway/tyk.conf
+      - ./tyk/apps:/opt/tyk-gateway/apps
+    networks:
+      - tyknet-network
+    depends_on:
+      - product-api
+      - user-api
+      - order-api
+    command: /opt/tyk-gateway/tyk --conf=/opt/tyk-gateway/tyk.conf
+
+networks:
+  tyknet-network:
+    driver: bridge
